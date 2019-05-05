@@ -4,12 +4,18 @@ import sys
 import pdb
 
 from filepath.filepath import fp
-from pyshark import FileCapture
+
 from pyspark import SparkConf, SparkContext
-import pyshark as psh
 from pyspark.sql import SQLContext, Row, SparkSession
 
 from config import FEATURE_SIZE, CLASSES
+
+import scapy
+from scapy.all import *
+from scapy.utils import rdpcap
+from scapy.layers.inet import IP, TCP
+
+from parse import get_base_pkt, get_src_dst, check_tls
 
 
 def print_help():
@@ -26,99 +32,85 @@ def get_label(mpath):
     return res
 
 
+def _to_str(seq):
+    return (str(i) for i in seq)
+
+
 def load_pcap(pf):
-    f = FileCapture(pf.path())
-    f.load_packets()
-    return f, get_label(pf.path())
+    """
+    Read pcap file into file
+    :param pf:
+    :return:
+    """
+    fpath = pf.path()
+    return rdpcap(fpath), get_label(fpath)
 
 
-def pick(gen, count):
+def _pick_first_n(gen, n):
+    """
+    Picks the first N elements of a generator
+    """
     idx = 0
-    if count > 0:
+    if n > 0:
         for c in gen:
             idx += 1
             yield c
-            if idx == count:
+            if idx == n:
                 break
 
 
 def _fix_length(iterable, value='0'):
-    arr = list(pick(iterable, FEATURE_SIZE))
+    """
+    Picks the first N of the iterable, returns
+    an array and pads the end of it with given
+    value if necessary
+    :param iterable:
+    :param value:
+    :return:
+    """
+    arr = list(_pick_first_n(iterable, FEATURE_SIZE))
     return arr + [value] * max(0, FEATURE_SIZE - len(arr))
 
 
-def _get_base_pkt(cap):
-    for pkt in cap:
-        if hasattr(pkt, 'ip') and hasattr(pkt.ip, 'tcp'):
-            return pkt
-    return cap[0]
+def _get_direction_seq(cap):
 
+    base_src_dst = get_src_dst(get_base_pkt(cap))
 
-def _get_src_dst(pkt):
-    """
-    return the peers of a flow a
-    :param cap: flow PCAP file parsed as FileCapture
-    :return: tuple of two strings
-    """
-
-    if hasattr(pkt, "ip"):
-        if hasattr(pkt, "tcp"):
-            first = pkt.ip.dst_host + "#" + pkt.tcp.dstport
-            second = pkt.ip.src_host + "#" + pkt.tcp.srcport
-            if pkt.tcp.dstport == 443 or pkt.tcp.dstport == 80:
-                return first, second
-            else:
-                return second, first
-        elif hasattr(pkt, "udp"):
-            return pkt.ip.dst_host + "#" + pkt.udp.dstport, pkt.ip.src_host + "#" + pkt.udp.srcport
-        else:
-            return pkt.ip.dst_host + "#0", pkt.ip.src_host + "#0"
-    elif hasattr(pkt, "eth"):
-        return pkt.eth.dst, pkt.eth.src
-    else:
-        return "N/A", "N/A"
-
-
-def _get_direction(cap):
-    if not isinstance(cap, psh.FileCapture):
-        raise Exception("Illegal argument type: %s" % type(cap))
-
-    basepkt = _get_base_pkt(cap)
-
-    base_src_dst = _get_src_dst(basepkt)
-
-    return ['1' if _get_src_dst(pkt) == base_src_dst
-            else '-1'
+    return [1 if get_src_dst(pkt) == base_src_dst else -1
             for pkt in cap]
 
 
 def analyze_pcap(args):
+    """
+    :param args: 2-tuple of loaded PCAP and its label (string)
+    :return:
+    """
 
-    cap, label = args
+    # unpack args
+    pcap, label = args
 
-    has_http2 = False
-    has_https = False
+    # get packet size stream
+    packet_size_seq = _get_size_seq(pcap)
 
-    packet_size = _fix_length((str(pkt.captured_length) for pkt in cap))
+    # get packet direction stream
+    direction_seq = _get_direction_seq(pcap)
 
-    direction = _fix_length(_get_direction(cap))
-
-    for p in cap:
-        if hasattr(p, "ssl") and hasattr(p.ssl, "record"):
-            if "http2" in p.ssl.record:
-                has_http2 = True
-                break
-            elif "http-over-tls" in p.ssl.record:
-                has_https = True
-                break
+    # check for TLS records
+    has_tls, has_https, has_http2 = check_tls(pcap)
 
     return {
-        "packet_size": packet_size,
-        "direction": direction,
-        "http2": int(has_http2),
+        "packet_size": _fix_length((str(i) for i in packet_size_seq)),
+        "direction": _fix_length((str(i) for i in direction_seq)),
+        "tls": int(has_tls),
         "https": int(has_https),
+        "http2": int(has_http2),
         "label": label
     }
+
+
+def _get_size_seq(pcap):
+
+    return (pkt.getlayer(IP) for pkt in pcap)
 
 
 def analysis_to_row(analysis):
@@ -138,9 +130,10 @@ if len(sys.argv) < 2:
     print_help()
     exit(1)
 
+# parse args
 arg_dict = dict(list(enumerate(sys.argv)))
-data_dir = fp(sys.argv[1])
-out_file = arg_dict.get(2, "output.csv")
+data_dir = fp(sys.argv[1]) # ARG 1 (required) input dir
+out_file = arg_dict.get(2, "output.csv") # ARG 2 (optional) output file (default: output.csv)
 
 # list PCAP files
 pcap_list = list([p for p in data_dir.find_files() if p.ext() not in ['json', 'csv', 'txt', 'data']])
@@ -164,9 +157,14 @@ df = sqlContext.createDataFrame(analyzed_rdd)
 
 df.write.csv(out_file + ".tmp", header=True)
 
-load_again = spark.read.option("header", "true").option("inferSchema", "true").csv(out_file + ".tmp")
+load_again = spark.read \
+    .option("header", "true") \
+    .option("inferSchema", "true") \
+    .csv(out_file + ".tmp")
 
-load_again.coalesce(1).write.csv(out_file, header=True)
+load_again.coalesce(1) \
+    .write \
+    .csv(out_file, header=True)
 
 shutil.rmtree(out_file + ".tmp")
 
