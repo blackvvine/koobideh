@@ -64,21 +64,38 @@ def extract_next_protocol(pkt):
 
 def check_tls(pcap):
 
-    has_tls = False
-    has_h1 = False
-    has_h2 = False
+    has_tls, has_h1, has_h2 = False, False, False
 
     for pkt in pcap:
-        if TLS in pkt:
-            has_tls = True
-        if TLSServerHello in pkt:
-            for protocol in extract_next_protocol(pkt):
-                if re.match(r"http/1.*", protocol):
-                    has_h1 = True
-                if "h2" in protocol:
-                    has_h2 = True
+
+        a = check_packet_tls(pkt)
+
+        has_tls = has_tls or a["has_tls"]
+        has_h1 = has_h1 or a["has_h1"]
+        has_h2 = has_h2 or a["has_h2"]
 
     return has_tls, has_h1, has_h2
+
+
+def check_packet_tls(pkt):
+
+    has_tls, has_h1, has_h2 = False, False, False
+
+    if TLS in pkt:
+        has_tls = True
+
+    if TLSServerHello in pkt:
+        for protocol in extract_next_protocol(pkt):
+            if re.match(r"http/1.*", protocol):
+                has_h1 = True
+            if "h2" in protocol:
+                has_h2 = True
+
+    return {
+        "has_tls": has_tls, 
+        "has_h1": has_h1,
+        "has_h2": has_h2
+    }
 
 
 
