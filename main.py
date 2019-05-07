@@ -1,47 +1,23 @@
-
-import shutil
-
-from filepath.filepath import fp
-
 from scapy.all import *
 from scapy.utils import rdpcap
 from scapy.layers.inet import IP
 from scapy.layers.inet6 import IPv6
 
 from parse import get_base_pkt, get_src_dst, check_tls
+from parse_tools import get_label
 from utils import get_logger
 from utils.gen import pick_first_n
 
 from pyspark import SparkConf, SparkContext
 from pyspark.sql import SparkSession, SQLContext, Row
 
-from config import CLASSES, FEATURE_SIZE
+from config import FEATURE_SIZE
 
 logger = get_logger("Pre-process")
 
 
 def print_help():
     pass
-
-
-def get_label(mpath):
-
-    idx = 0
-    res = None
-
-    for c in CLASSES:
-        if c in mpath:
-            res = idx
-        idx += 1
-
-    if res is None:
-        raise Exception("Unknown label {}".format(mpath))
-
-    return res
-
-
-def _to_str(seq):
-    return (str(i) for i in seq)
 
 
 def load_pcap(pf):
@@ -130,8 +106,8 @@ def analyze_pcap(args):
     has_tls, has_https, has_http2 = check_tls(pcap)
 
     return {
-        "packet_size": (str(i) for i in _fix_length(packet_size_seq)),
-        "direction": (str(i) for i in _fix_length(direction_seq)),
+        "packet_size": map(str, _fix_length(packet_size_seq)),
+        "direction": map(str, _fix_length(direction_seq)),
         "tls": int(has_tls),
         "https": int(has_https),
         "http2": int(has_http2),

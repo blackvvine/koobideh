@@ -77,6 +77,10 @@ def check_tls(pcap):
     return has_tls, has_h1, has_h2
 
 
+def get_first_n_bytes(pcap, n=784):
+    return pick_first_n((len(pkt.load) for pkt in pcap), n=n)
+
+
 def check_packet_tls(pkt):
 
     has_tls, has_h1, has_h2 = False, False, False
@@ -96,9 +100,5 @@ def check_packet_tls(pkt):
         "has_h1": has_h1,
         "has_h2": has_h2
     }
-
-
-
-
 
 
