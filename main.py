@@ -66,6 +66,7 @@ def branch_per_flow_feature(flow_args):
         (fpath, (pcap, lambda pcap: _get_size_seq(pcap))),
         (fpath, (pcap, lambda pcap: _get_direction_seq(pcap))),
         (fpath, (pcap, lambda pcap: _get_tls_info(pcap))),
+        (fpath, (pcap, lambda pcap: _get_time_seq(pcap))),
         (fpath, (pcap, lambda _: {"label": get_label(fpath)})),
     ]
 

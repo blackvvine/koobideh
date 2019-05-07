@@ -3,6 +3,8 @@ from utils import get_logger
 
 
 # logger is parse
+from utils.gen import pick_first_n
+
 logger = get_logger("Parse")
 
 
@@ -46,4 +48,21 @@ def dir_seq(pcap):
     base_src_dst = get_src_dst(get_base_pkt(pcap))
 
     return (1 if get_src_dst(pkt) == base_src_dst else -1 for pkt in pcap)
+
+
+def explode_pcap_to_packets(path_pcap_label, num_packets):
+
+    path = path_pcap_label[0]
+    pcap = path_pcap_label[1]
+    label = path_pcap_label[2]
+    basedir = get_src_dst(get_base_pkt(pcap))
+
+    return [
+        (path, pkt, {
+            "label": label,
+            "index": idx,
+            "basedir": basedir
+        })
+        for idx, pkt in pick_first_n(enumerate(pcap), num_packets)
+    ]
 
