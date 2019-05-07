@@ -1,9 +1,12 @@
-from scapy.all import *
-from scapy.utils import rdpcap
-from scapy.layers.inet import IP
-from scapy.layers.inet6 import IPv6
+import shutil
+import sys
 
-from parse import get_base_pkt, get_src_dst, check_tls
+from filepath.filepath import fp
+
+from scapy.all import *
+
+from flow_process import get_base_pkt, check_tls
+from packet_process import get_src_dst
 from parse_tools import get_label
 from utils import get_logger
 from utils.gen import pick_first_n
@@ -22,12 +25,11 @@ def print_help():
 
 def load_pcap(pf):
     """
-    Read pcap file into file
-    :param pf:
-    :return:
+    Read pcap file into Scapy Ether objects
+    :return: File path - Ether object tuples
     """
     fpath = pf.path()
-    return rdpcap(fpath), get_label(fpath)
+    return fpath, rdpcap(fpath)
 
 
 def explode_pcap_to_packets(path_pcap_label):
@@ -79,48 +81,61 @@ def _fix_length(iterable, value='0'):
     return arr + [value] * max(0, FEATURE_SIZE - len(arr))
 
 
-def _get_direction_seq(cap):
+def _get_direction_seq(pcap):
 
-    base_src_dst = get_src_dst(get_base_pkt(cap))
+    base_src_dst = get_src_dst(get_base_pkt(pcap))
 
-    return (1 if get_src_dst(pkt) == base_src_dst else -1
-            for pkt in cap)
-
-
-def analyze_pcap(args):
-    """
-    :param args: 2-tuple of loaded PCAP and its label (string)
-    :return:
-    """
-
-    # unpack args
-    pcap, label = args
-
-    # get packet size stream
-    packet_size_seq = _get_size_seq(pcap)
-
-    # get packet direction stream
-    direction_seq = _get_direction_seq(pcap)
-
-    # check for TLS records
-    has_tls, has_https, has_http2 = check_tls(pcap)
+    dir_seq = (1 if get_src_dst(pkt) == base_src_dst else -1 for pkt in pcap)
 
     return {
-        "packet_size": map(str, _fix_length(packet_size_seq)),
-        "direction": map(str, _fix_length(direction_seq)),
+        "direction": _fix_length(dir_seq)
+    }
+
+
+def _get_tls_info(pcap):
+    has_tls, has_https, has_http2 = check_tls(pcap)
+    return {
         "tls": int(has_tls),
         "https": int(has_https),
-        "http2": int(has_http2),
-        "label": label
+        "http2": int(has_http2)
     }
 
 
 def _get_size_seq(pcap):
 
-    return (len(pkt.getlayer(IP)) if IP in pkt else len(pkt.getlayer(IPv6)) for pkt in pcap)
+    size_seq = (len(pkt.getlayer(IP)) if IP in pkt else len(pkt.getlayer(IPv6)) for pkt in pcap)
+
+    return {
+        "packet_size": _fix_length(size_seq)
+    }
 
 
-def analysis_to_row(analysis):
+def branch_per_flow_feature(flow_args):
+    fpath, pcap = flow_args
+    return [
+        (fpath, (pcap, lambda pcap: _get_size_seq(pcap))),
+        (fpath, (pcap, lambda pcap: _get_direction_seq(pcap))),
+        (fpath, (pcap, lambda pcap: _get_tls_info(pcap))),
+        (fpath, (pcap, lambda _: {"label": get_label(fpath)})),
+    ]
+
+
+def execute_pcap_command(arg):
+    # TODO check whether omitting PCAP in arg and loading PCAP file here would be faster
+    fpath, (pcap, pcap_func) = arg
+    return fpath, pcap_func(pcap)
+
+
+def merge_dicts(d1, d2):
+    res = dict()
+    res.update(d1)
+    res.update(d2)
+    return res
+
+
+def analysis_to_row(arg):
+
+    fpath, analysis = arg
 
     d = {}
     d.update({"p_%03d" % (i+1,): v for i, v in enumerate(analysis["packet_size"])})
@@ -143,46 +158,56 @@ def analysis_to_row(analysis):
     return Row(**d)
 
 
-# parse input
-if len(sys.argv) < 2:
-    print_help()
-    exit(1)
+def __main__():
 
-# parse args
-arg_dict = dict(list(enumerate(sys.argv)))
-data_dir = fp(sys.argv[1]) # ARG 1 (required) input dir
-out_file = arg_dict.get(2, "output.csv") # ARG 2 (optional) output file (default: output.csv)
+    # parse input
+    if len(sys.argv) < 2:
+        print_help()
+        exit(1)
 
-# list PCAP files
-pcap_list = list([p for p in data_dir.find_files() if p.ext() not in ['json', 'csv', 'txt', 'data']])
+    # parse args
+    arg_dict = dict(list(enumerate(sys.argv)))
+    data_dir = fp(sys.argv[1])  # ARG 1 (required) input dir
+    out_file = arg_dict.get(2, "output.csv")  # ARG 2 (optional) output file (default: output.csv)
 
-# load Spark session
-spark = SparkSession.builder.master("local[64]").appName("PySparkShell").getOrCreate()
-conf = SparkConf().setAppName("PySparkShell").setMaster("local[64]")
-sc = SparkContext.getOrCreate(conf)
-sqlContext = SQLContext(sc)
+    # list PCAP files
+    pcap_list = list([p for p in data_dir.find_files() if p.ext() not in ['json', 'csv', 'txt', 'data']])
 
-# make RDD
-paths_rdd = sc.parallelize(pcap_list)
+    # load Spark session
+    spark = SparkSession.builder.master("local[64]").appName("PySparkShell").getOrCreate()
+    conf = SparkConf().setAppName("PySparkShell").setMaster("local[64]")
+    sc = SparkContext.getOrCreate(conf)
+    sqlContext = SQLContext(sc)
 
-# load PCAP
-pcaps_rdd = paths_rdd.repartition(512).map(load_pcap)
+    # make RDD
+    paths_rdd = sc.parallelize(pcap_list)
 
-analyzed_rdd = pcaps_rdd.map(analyze_pcap).map(analysis_to_row)
+    # load PCAP
+    analyzed_rdd = paths_rdd \
+        .repartition(512) \
+        .map(load_pcap) \
+        .flatMap(branch_per_flow_feature) \
+        .map(execute_pcap_command) \
+        .reduceByKey(merge_dicts) \
+        .map(analysis_to_row)
 
-df = sqlContext.createDataFrame(analyzed_rdd)
+    df = sqlContext.createDataFrame(analyzed_rdd)
 
-df.write.csv(out_file + ".tmp", header=True)
+    df.write.csv(out_file + ".tmp", header=True)
 
-load_again = spark.read \
-    .option("header", "true") \
-    .option("inferSchema", "true") \
-    .csv(out_file + ".tmp")
+    load_again = spark.read \
+        .option("header", "true") \
+        .option("inferSchema", "true") \
+        .csv(out_file + ".tmp")
 
-load_again.coalesce(1) \
-    .write \
-    .csv(out_file, header=True)
+    load_again.coalesce(1) \
+        .write \
+        .csv(out_file, header=True)
 
-shutil.rmtree(out_file + ".tmp")
+    shutil.rmtree(out_file + ".tmp")
+
+
+if __name__ == "__main__":
+    __main__()
 
 
