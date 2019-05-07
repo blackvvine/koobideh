@@ -1,20 +1,18 @@
 import shutil
-import sys
 
 from filepath.filepath import fp
-
 from scapy.all import *
 
 from flow_process import get_base_pkt, check_tls
 from packet_process import get_src_dst
 from parse_tools import get_label
 from utils import get_logger
-from utils.gen import pick_first_n
+from utils.gen import pick_first_n, force_length
 
-from pyspark import SparkConf, SparkContext
-from pyspark.sql import SparkSession, SQLContext, Row
+from pyspark.sql import Row
 
 from config import FEATURE_SIZE
+from utils.sprk import get_spark_session, read_csv, write_csv
 
 logger = get_logger("Pre-process")
 
@@ -49,38 +47,6 @@ def explode_pcap_to_packets(path_pcap_label):
     ]
 
 
-def _add_dict(d1, d2):
-    d = dict(d1)
-    d.update(d2)
-    return d
-
-
-def apply_function_to_pkt(function):
-    """
-    returns a function
-    :param function:
-    :return:
-    """
-    return lambda pkt_tuple: (
-        pkt_tuple[0],
-        pkt_tuple[1],
-        _add_dict(pkt_tuple[2], function(pkt_tuple[1]))
-    )
-
-
-def _fix_length(iterable, value='0'):
-    """
-    Picks the first N of the iterable, returns
-    an array and pads the end of it with given
-    value if necessary
-    :param iterable:
-    :param value:
-    :return:
-    """
-    arr = list(pick_first_n(iterable, FEATURE_SIZE))
-    return arr + [value] * max(0, FEATURE_SIZE - len(arr))
-
-
 def _get_direction_seq(pcap):
 
     base_src_dst = get_src_dst(get_base_pkt(pcap))
@@ -88,7 +54,7 @@ def _get_direction_seq(pcap):
     dir_seq = (1 if get_src_dst(pkt) == base_src_dst else -1 for pkt in pcap)
 
     return {
-        "direction": _fix_length(dir_seq)
+        "direction": force_length(dir_seq, FEATURE_SIZE)
     }
 
 
@@ -103,10 +69,10 @@ def _get_tls_info(pcap):
 
 def _get_size_seq(pcap):
 
-    size_seq = (len(pkt.getlayer(IP)) if IP in pkt else len(pkt.getlayer(IPv6)) for pkt in pcap)
+    size_seq = (len(pkt.payload) for pkt in pcap)
 
     return {
-        "packet_size": _fix_length(size_seq)
+        "packet_size": force_length(size_seq, FEATURE_SIZE)
     }
 
 
@@ -169,15 +135,12 @@ def __main__():
     arg_dict = dict(list(enumerate(sys.argv)))
     data_dir = fp(sys.argv[1])  # ARG 1 (required) input dir
     out_file = arg_dict.get(2, "output.csv")  # ARG 2 (optional) output file (default: output.csv)
+    tmp_file = out_file + ".tmp"
 
     # list PCAP files
     pcap_list = list([p for p in data_dir.find_files() if p.ext() not in ['json', 'csv', 'txt', 'data']])
 
-    # load Spark session
-    spark = SparkSession.builder.master("local[64]").appName("PySparkShell").getOrCreate()
-    conf = SparkConf().setAppName("PySparkShell").setMaster("local[64]")
-    sc = SparkContext.getOrCreate(conf)
-    sqlContext = SQLContext(sc)
+    spark, sc, sqlContext = get_spark_session()
 
     # make RDD
     paths_rdd = sc.parallelize(pcap_list)
@@ -192,19 +155,12 @@ def __main__():
         .map(analysis_to_row)
 
     df = sqlContext.createDataFrame(analyzed_rdd)
+    df.write.csv(tmp_file, header=True)
 
-    df.write.csv(out_file + ".tmp", header=True)
+    load_again = read_csv(spark, tmp_file).coalesce(1)
+    write_csv(load_again, out_file)
 
-    load_again = spark.read \
-        .option("header", "true") \
-        .option("inferSchema", "true") \
-        .csv(out_file + ".tmp")
-
-    load_again.coalesce(1) \
-        .write \
-        .csv(out_file, header=True)
-
-    shutil.rmtree(out_file + ".tmp")
+    shutil.rmtree(tmp_file)
 
 
 if __name__ == "__main__":

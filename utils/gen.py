@@ -1,3 +1,4 @@
+from config import FEATURE_SIZE
 
 
 def pick_first_n(gen, n):
@@ -12,5 +13,17 @@ def pick_first_n(gen, n):
             if idx == n:
                 break
 
+
+def force_length(iterable, n, pad='0'):
+    """
+    Picks the first N of the iterable, returns
+    an array and pads the end of it with given
+    value if necessary
+    :param iterable:
+    :param pad:
+    :return:
+    """
+    arr = list(pick_first_n(iterable, n))
+    return arr + [pad] * max(0, n - len(arr))
 
 
