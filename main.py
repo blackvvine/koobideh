@@ -1,10 +1,7 @@
-import shutil
-
-from filepath.filepath import fp
 from scapy.all import *
 
-from flow_process import get_base_pkt, check_tls
-from packet_process import get_src_dst
+from analysis.flow import get_base_pkt, check_tls, size_seq, dir_seq, inter_arrival
+from analysis.packet import get_src_dst
 from parse_tools import get_label
 from utils import get_logger
 from utils.gen import pick_first_n, force_length
@@ -13,6 +10,9 @@ from pyspark.sql import Row
 
 from config import FEATURE_SIZE
 from utils.sprk import get_spark_session, read_csv, write_csv
+
+import shutil
+from filepath.filepath import fp
 
 logger = get_logger("Pre-process")
 
@@ -30,36 +30,17 @@ def load_pcap(pf):
     return fpath, rdpcap(fpath)
 
 
-def explode_pcap_to_packets(path_pcap_label):
-
-    path = path_pcap_label[0]
-    pcap = path_pcap_label[1]
-    label = path_pcap_label[2]
-    basedir = get_src_dst(get_base_pkt(pcap))
-
-    return [
-        (path, pkt, {
-            "label": label,
-            "index": idx,
-            "basedir": basedir
-        })
-        for idx, pkt in pick_first_n(enumerate(pcap), FEATURE_SIZE)
-    ]
-
-
 def _get_direction_seq(pcap):
 
-    base_src_dst = get_src_dst(get_base_pkt(pcap))
-
-    dir_seq = (1 if get_src_dst(pkt) == base_src_dst else -1 for pkt in pcap)
-
     return {
-        "direction": force_length(dir_seq, FEATURE_SIZE)
+        "direction": force_length(dir_seq(pcap), FEATURE_SIZE)
     }
 
 
 def _get_tls_info(pcap):
+
     has_tls, has_https, has_http2 = check_tls(pcap)
+
     return {
         "tls": int(has_tls),
         "https": int(has_https),
@@ -68,11 +49,14 @@ def _get_tls_info(pcap):
 
 
 def _get_size_seq(pcap):
-
-    size_seq = (len(pkt.payload) for pkt in pcap)
-
     return {
-        "packet_size": force_length(size_seq, FEATURE_SIZE)
+        "packet_size": force_length(size_seq(pcap), FEATURE_SIZE)
+    }
+
+
+def _get_time_seq(pcap):
+    return {
+        "inter_arrival": force_length(inter_arrival(pcap), FEATURE_SIZE)
     }
 
 
@@ -103,9 +87,12 @@ def analysis_to_row(arg):
 
     fpath, analysis = arg
 
+    l2d = lambda l, prefix: {"%s_%03d" % (prefix, i + 1): v for i, v in enumerate(l)}
+
     d = {}
-    d.update({"p_%03d" % (i+1,): v for i, v in enumerate(analysis["packet_size"])})
-    d.update({"d_%03d" % (i+1,): v for i, v in enumerate(analysis["direction"])})
+    d.update(l2d(analysis["packet_size"], "p"))
+    d.update(l2d(analysis["direction"], "d"))
+    d.update(l2d(analysis["inter_arrival"], "t"))
     d.update({
         "http2": analysis["http2"],
         "https": analysis["https"],
