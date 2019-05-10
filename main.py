@@ -102,7 +102,7 @@ def analysis_to_row(arg):
     })
 
     for k, v in d.items():
-        if v is None:
+        if v is None or v is "":
             raise Exception("Field %s is null" % k)
         try:
             int(v)
@@ -110,6 +110,11 @@ def analysis_to_row(arg):
             raise Exception("Non-integer value {} for {}".format(v, k))
 
     return Row(**d)
+
+
+def filter_tiny_flows(arg):
+    _, pcap = arg
+    return len(pcap) >= 10
 
 
 def __main__():
@@ -137,6 +142,7 @@ def __main__():
     analyzed_rdd = paths_rdd \
         .repartition(512) \
         .map(load_pcap) \
+        .filter(filter_tiny_flows) \
         .flatMap(branch_per_flow_feature) \
         .map(execute_pcap_command) \
         .reduceByKey(merge_dicts) \
