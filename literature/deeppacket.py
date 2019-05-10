@@ -32,20 +32,9 @@ def filter_out_non_ip(pkt):
 
 def filter_out_irrelavent(arg):
     _, _, pkt = arg
-    return all([f(pkt) for f in (
-        filter_out_dns,
-        filter_out_empty_tcp,
-        filter_out_non_ip,
-    )])
-
-
-def remove_ethernet_header(arg):
-    f, i, pkt = arg
-    return f, i, pkt.payload
-
-
-def _to_bytes(pkt):
-    return bytearray(str(pkt))
+    return filter_out_dns(pkt) and \
+        filter_out_empty_tcp(pkt) and \
+        filter_out_non_ip(pkt)
 
 
 def _get_ip_layer(pkt):
@@ -53,66 +42,56 @@ def _get_ip_layer(pkt):
         else pkt.getlayer(IPv6)
 
 
-def _get_header_length(pkt):
-    return len(pkt) - len(pkt.payload)
-
-
 def _get_zero_address(pkt):
     return '0.0.0.0' if IP in pkt \
         else '::1'
 
 
-def _get_ip_header(pkt):
-
-    # extract IP layer
-    netlayer = _get_ip_layer(pkt).copy()
-    zero = _get_zero_address(pkt)
-
-    # mask IP addresses
-    netlayer.src = zero
-    netlayer.dst = zero
-
-    # return header bytes
-    mbytes = _to_bytes(netlayer)
-    return mbytes[:_get_header_length(pkt)]
-
-
 def convert_to_bytes(arg):
     f, i, pkt = arg
 
+    assert IP in pkt or IPv6 in pkt
+
     # get layer-3
-    netlayer = _get_ip_layer(pkt)
+    netlayer = _get_ip_layer(pkt).copy()
 
-    # get IP payload bytes
-    mbytes = bytearray(str(netlayer.payload))
+    # mask IP
+    zero = _get_zero_address(pkt)
+    netlayer.src = zero
+    netlayer.dst = zero
 
-    # zero pad UDP header
+    # add IP header
+    header_length = len(netlayer) - len(netlayer.payload)
+    mbytes = str(netlayer)[:header_length]
+
+    # zero-pad UDP header
     if UDP in pkt:
-        mbytes = mbytes[:8] + b'\0' * 12 + mbytes[8:]
+        mbytes += str(netlayer.getlayer(UDP))[:8]
+        mbytes += '\0' * 12
+        mbytes += str(netlayer.getlayer(UDP))[8:]
+    else:
+        mbytes += str(netlayer.payload)
 
-    # concat IP header
-    mbytes = _get_ip_header(pkt) + mbytes
-
-    # zero pad
-    mbytes = list(mbytes) + max(len(mbytes) - 1500, 0) * [0]
-
-    # use first 1500 byts
+    # use first 1500 bytes
     mbytes = mbytes[:1500]
+
+    # convert to integer values and zero-pad
+    mbytes = [ord(c) for c in mbytes]
+    mbytes += max(1500 - len(mbytes), 0) * [0]
 
     assert len(mbytes) == 1500
 
     return f, i, mbytes
 
 
-def to_rows(arg):
+def to_row(arg):
 
     fpath, idx, mbytes = arg
-    assert isinstance(mbytes, bytearray)
-    label = get_label(fpath)
+    assert len(mbytes) == 1500
+    for c in mbytes:
+        assert type(c) == int and 0 <= c <= 255
 
-    mdict = {
-        "label": label
-    }
+    mdict = {"label": (get_label(fpath))}
 
     for i in range(1500):
         mdict["b%03d" % i] = mbytes[i]
@@ -138,13 +117,14 @@ def deep_packet():
         .map(load_pcap) \
         .flatMap(explode_pcap_to_packets) \
         .filter(filter_out_irrelavent) \
-        .map(remove_ethernet_header) \
         .map(convert_to_bytes) \
-        .map(to_rows)
+        .map(to_row)
 
-    df = analyzed_rdd.toDF()
-
-    df.repartition(512).coalesce(1).write.csv(out_file, header=True)
+    analyzed_rdd.toDF() \
+        .repartition(512) \
+        .coalesce(1) \
+        .write \
+        .csv(out_file, header=True)
 
 
 def analysis():
@@ -177,7 +157,9 @@ def analysis():
         .createOrReplaceTempView("psizes")
 
     spark.sql("""
-        select size, count(size) as cnt
+        select 
+            size, 
+            count(size) as cnt
         from psizes
         group by size
         order by size
