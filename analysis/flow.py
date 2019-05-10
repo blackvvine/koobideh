@@ -50,19 +50,12 @@ def dir_seq(pcap):
     return (1 if get_src_dst(pkt) == base_src_dst else -1 for pkt in pcap)
 
 
-def explode_pcap_to_packets(path_pcap_label, num_packets):
+def explode_pcap_to_packets(arg):
 
-    path = path_pcap_label[0]
-    pcap = path_pcap_label[1]
-    label = path_pcap_label[2]
-    basedir = get_src_dst(get_base_pkt(pcap))
+    fpath, pcap = arg
 
-    return [
-        (path, pkt, {
-            "label": label,
-            "index": idx,
-            "basedir": basedir
-        })
-        for idx, pkt in pick_first_n(enumerate(pcap), num_packets)
-    ]
+    for idx, pkt in enumerate(pcap):
+        yield fpath, idx, pkt
+
+
 
