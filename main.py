@@ -1,10 +1,9 @@
 from scapy.all import *
 
-from analysis.flow import get_base_pkt, check_tls, size_seq, dir_seq, inter_arrival
-from analysis.packet import get_src_dst
-from parse_tools import get_label
+from analysis.flow import check_tls, size_seq, dir_seq, inter_arrival
+from utils.general import get_label, read_inputs, get_pcaps
 from utils import get_logger
-from utils.gen import pick_first_n, force_length
+from utils.gen import force_length
 
 from pyspark.sql import Row
 
@@ -12,13 +11,8 @@ from config import FEATURE_SIZE
 from utils.sprk import get_spark_session, read_csv, write_csv
 
 import shutil
-from filepath.filepath import fp
 
 logger = get_logger("Pre-process")
-
-
-def print_help():
-    pass
 
 
 def load_pcap(pf):
@@ -119,19 +113,11 @@ def filter_tiny_flows(arg):
 
 def __main__():
 
-    # parse input
-    if len(sys.argv) < 2:
-        print_help()
-        exit(1)
-
-    # parse args
-    arg_dict = dict(list(enumerate(sys.argv)))
-    data_dir = fp(sys.argv[1])  # ARG 1 (required) input dir
-    out_file = arg_dict.get(2, "output.csv")  # ARG 2 (optional) output file (default: output.csv)
+    data_dir, out_file = read_inputs()
     tmp_file = out_file + ".tmp"
 
     # list PCAP files
-    pcap_list = list([p for p in data_dir.find_files() if p.ext() not in ['json', 'csv', 'txt', 'data']])
+    pcap_list = get_pcaps(data_dir)
 
     spark, sc, sqlContext = get_spark_session()
 
