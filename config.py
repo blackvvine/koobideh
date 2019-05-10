@@ -60,3 +60,5 @@ CLASSES = [
     "youtube",
     "youtubeHTML",
 ]
+
+PARTITIONS = 1024

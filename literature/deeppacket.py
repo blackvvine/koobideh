@@ -14,6 +14,7 @@ from scapy.all import *
 from scapy.all import DNS, TCP, IPv6, IP, UDP
 
 from utils.general import get_label
+from config import PARTITIONS
 
 
 def filter_out_dns(pkt):
@@ -113,7 +114,7 @@ def deep_packet():
     paths_rdd = sc.parallelize(pcap_list)
 
     analyzed_rdd = paths_rdd \
-        .repartition(512) \
+        .repartition(PARTITIONS) \
         .map(load_pcap) \
         .flatMap(explode_pcap_to_packets) \
         .filter(filter_out_irrelavent) \
@@ -121,7 +122,7 @@ def deep_packet():
         .map(to_row)
 
     analyzed_rdd.toDF() \
-        .repartition(512) \
+        .repartition(PARTITIONS) \
         .coalesce(1) \
         .write \
         .csv(out_file, header=True)
@@ -143,7 +144,7 @@ def analysis():
     paths_rdd = sc.parallelize(pcap_list)
 
     psizes = paths_rdd \
-        .repartition(512) \
+        .repartition(PARTITIONS) \
         .map(load_pcap) \
         .flatMap(explode_pcap_to_packets) \
         .filter(filter_out_irrelavent) \
@@ -163,10 +164,10 @@ def analysis():
         from psizes
         group by size
         order by size
-    """).repartition(512)\
+    """) \
         .coalesce(1)\
         .write\
-        .csv(out_dir + "/hist-512.csv", header=True)
+        .csv(out_dir + "/hist-1.csv", header=True)
 
 
 def __main__():
