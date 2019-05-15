@@ -107,12 +107,17 @@ def to_row(arg):
 def _save_mat_f(outfile):
 
     def _save_mat(partition):
+
         ctx = TaskContext()
         data = []
+
         for row in partition:
             fpath, idx, mbytes = row
-            row_data = list(map(int, mbytes)) + [get_label(fpath)]
+            for b in mbytes:
+                assert isinstance(b, int)
+            row_data = mbytes + [get_label(fpath)]
             data.append(row_data)
+
         mat = np.array(data)
         out = fp(outfile) + fp("part_%03d.mat" % ctx.partitionId())
         savemat(out.path(), {"packets": mat})
@@ -142,16 +147,20 @@ def deep_packet(use_mat=False):
 
     if not use_mat:
         analyzed_rdd \
+            .repartition(PARTITIONS) \
             .map(to_row) \
             .toDF() \
-            .repartition(PARTITIONS) \
             .coalesce(1) \
             .write \
             .csv(out_file, header=True)
     else:
+
         fp(out_file).ensure()
         abspath = os.path.abspath(fp(out_file).path())
-        analyzed_rdd.foreachPartition(_save_mat_f(abspath))
+
+        analyzed_rdd \
+            .repartition(64) \
+            .foreachPartition(_save_mat_f(abspath))
 
 
 def analysis():
