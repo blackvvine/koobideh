@@ -1,6 +1,10 @@
 import sys
+import numpy as np
 
 from filepath.filepath import fp
+from pyspark.taskcontext import TaskContext
+from pyspark.sql.types import StructType, StructField, IntegerType
+from scipy.io import savemat
 
 from main import load_pcap
 from utils.general import read_inputs, get_pcaps
@@ -100,7 +104,23 @@ def to_row(arg):
     return Row(**mdict)
 
 
-def deep_packet():
+def _save_mat_f(outfile):
+
+    def _save_mat(partition):
+        ctx = TaskContext()
+        data = []
+        for row in partition:
+            fpath, idx, mbytes = row
+            row_data = list(map(int, mbytes)) + [get_label(fpath)]
+            data.append(row_data)
+        mat = np.array(data)
+        out = fp(outfile) + fp("part_%03d.mat" % ctx.partitionId())
+        savemat(out.path(), {"packets": mat})
+
+    return _save_mat
+
+
+def deep_packet(use_mat=False):
 
     # get input and output dir
     data_dir, out_file = read_inputs()
@@ -118,14 +138,20 @@ def deep_packet():
         .map(load_pcap) \
         .flatMap(explode_pcap_to_packets) \
         .filter(filter_out_irrelavent) \
-        .map(convert_to_bytes) \
-        .map(to_row)
+        .map(convert_to_bytes)
 
-    analyzed_rdd.toDF() \
-        .repartition(PARTITIONS) \
-        .coalesce(1) \
-        .write \
-        .csv(out_file, header=True)
+    if not use_mat:
+        analyzed_rdd \
+            .map(to_row) \
+            .toDF() \
+            .repartition(PARTITIONS) \
+            .coalesce(1) \
+            .write \
+            .csv(out_file, header=True)
+    else:
+        fp(out_file).ensure()
+        abspath = os.path.abspath(fp(out_file).path())
+        analyzed_rdd.foreachPartition(_save_mat_f(abspath))
 
 
 def analysis():
@@ -170,8 +196,20 @@ def analysis():
         .csv(out_dir + "/hist-1.csv", header=True)
 
 
+def mat_to_csv():
+
+    data_dir, out_dir = read_inputs()
+    spark, sc, sqlContext = get_spark_session()
+
+    csv_files = [f.path() for f in fp(data_dir).ls() if f.ext() == "csv"]
+
+    paths_rdd = sc.parallelize(csv_files)
+
+    custom_schema = StructType([StructField("b_%03d", IntegerType())] + [StructField("label", IntegerType())])
+
+
 def __main__():
-    deep_packet()
+    deep_packet(use_mat=True)
 
 
 if __name__ == "__main__":
