@@ -20,6 +20,8 @@ from scapy.all import DNS, TCP, IPv6, IP, UDP
 from utils.general import get_label
 from config import PARTITIONS
 
+from numpy import dtype
+
 
 def filter_out_dns(pkt):
     return DNS not in pkt
@@ -80,6 +82,7 @@ def convert_to_bytes(arg):
     # use first 1500 bytes
     mbytes = mbytes[:1500]
 
+    # TODO remove this madness and use byte-arrays
     # convert to integer values and zero-pad
     mbytes = [ord(c) for c in mbytes]
     mbytes += max(1500 - len(mbytes), 0) * [0]
@@ -118,8 +121,8 @@ def _save_mat_f(outfile):
             row_data = mbytes + [get_label(fpath)]
             data.append(row_data)
 
-        mat = np.array(data)
-        out = fp(outfile) + fp("part_%03d.mat" % ctx.partitionId())
+        mat = np.array(data, dtype=np.dtype('B'))
+        out = fp(outfile) + fp("part_%04d.mat" % ctx.partitionId())
         savemat(out.path(), {"packets": mat})
 
     return _save_mat
@@ -159,7 +162,7 @@ def deep_packet(use_mat=False):
         abspath = os.path.abspath(fp(out_file).path())
 
         analyzed_rdd \
-            .repartition(64) \
+            .repartition(256) \
             .foreachPartition(_save_mat_f(abspath))
 
 
