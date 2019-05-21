@@ -158,11 +158,15 @@ def deep_packet(use_mat=False):
             .csv(out_file, header=True)
     else:
 
+        NUM_MAT_FILES = 2 ** 14
+
         fp(out_file).ensure()
         abspath = os.path.abspath(fp(out_file).path())
 
         analyzed_rdd \
-            .repartition(256) \
+            .map(lambda x: (0, x)) \
+            .partitionBy(NUM_MAT_FILES, lambda x: np.random.randint(NUM_MAT_FILES)) \
+            .map(lambda x: x[1]) \
             .foreachPartition(_save_mat_f(abspath))
 
 
