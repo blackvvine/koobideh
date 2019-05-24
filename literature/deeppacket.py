@@ -122,7 +122,7 @@ def _save_mat_f(outfile):
             data.append(row_data)
 
         mat = np.array(data, dtype=np.dtype('B'))
-        out = fp(outfile) + fp("part_%04d.mat" % ctx.partitionId())
+        out = fp(outfile) + fp("part_%05d.mat" % ctx.partitionId())
         savemat(out.path(), {"packets": mat})
 
     return _save_mat
