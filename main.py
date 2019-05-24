@@ -54,6 +54,13 @@ def _get_time_seq(pcap):
     }
 
 
+def _get_pcap_size(pcap):
+    return {
+        "num_packets": len(pcap),
+        "num_bytes": sum([len(i) for i in pcap])
+    }
+
+
 def branch_per_flow_feature(flow_args):
     fpath, pcap = flow_args
     return [
@@ -61,6 +68,7 @@ def branch_per_flow_feature(flow_args):
         (fpath, (pcap, lambda pcap: _get_direction_seq(pcap))),
         (fpath, (pcap, lambda pcap: _get_tls_info(pcap))),
         (fpath, (pcap, lambda pcap: _get_time_seq(pcap))),
+        (fpath, (pcap, lambda pcap: _get_pcap_size(pcap))),
         (fpath, (pcap, lambda _: {"label": get_label(fpath)})),
     ]
 
@@ -82,7 +90,7 @@ def analysis_to_row(arg):
 
     fpath, analysis = arg
 
-    l2d = lambda l, prefix: {"%s_%03d" % (prefix, i + 1): v for i, v in enumerate(l)}
+    l2d = lambda l, prefix: {"%s_%05d" % (prefix, i + 1): v for i, v in enumerate(l)}
 
     d = {}
     d.update(l2d(analysis["packet_size"], "p"))
@@ -92,7 +100,9 @@ def analysis_to_row(arg):
         "http2": analysis["http2"],
         "https": analysis["https"],
         "tls": analysis["tls"],
-        "label": analysis["label"]
+        "label": analysis["label"],
+        "num_packets": analysis["num_packets"],
+        "num_bytes": analysis["num_bytes"],
     })
 
     for k, v in d.items():
@@ -111,15 +121,10 @@ def filter_tiny_flows(arg):
     return len(pcap) >= 10
 
 
-def __main__():
-
-    data_dir, out_file = read_inputs()
-    tmp_file = out_file + ".tmp"
+def get_flows_df(spark, sc, sqlContext, data_dir):
 
     # list PCAP files
     pcap_list = get_pcaps(data_dir)
-
-    spark, sc, sqlContext = get_spark_session()
 
     # make RDD
     paths_rdd = sc.parallelize(pcap_list)
@@ -135,6 +140,26 @@ def __main__():
         .map(analysis_to_row)
 
     df = sqlContext.createDataFrame(analyzed_rdd)
+    return df
+
+
+def _analysis():
+
+    data_dir, out_file = read_inputs()
+    spark, sc, sqlContext = get_spark_session()
+
+    df = get_flows_df(spark, sc, sqlContext, data_dir)
+    df.createOrReplaceTempView("flows")
+
+
+def __main__():
+
+    data_dir, out_file = read_inputs()
+    tmp_file = out_file + ".tmp"
+
+    spark, sc, sqlContext = get_spark_session()
+
+    df = get_flows_df(spark, sqlContext, data_dir)
     df.write.csv(tmp_file, header=True)
 
     load_again = read_csv(spark, tmp_file).coalesce(1)
