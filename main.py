@@ -27,7 +27,7 @@ def load_pcap(pf):
 def _get_direction_seq(pcap):
 
     return {
-        "direction": force_length(dir_seq(pcap), FEATURE_SIZE)
+        "direction": force_length(dir_seq(pcap), FEATURE_SIZE, pad=0)
     }
 
 
@@ -44,13 +44,13 @@ def _get_tls_info(pcap):
 
 def _get_size_seq(pcap):
     return {
-        "packet_size": force_length(size_seq(pcap), FEATURE_SIZE)
+        "packet_size": force_length(size_seq(pcap), FEATURE_SIZE, pad=0)
     }
 
 
 def _get_time_seq(pcap):
     return {
-        "inter_arrival": force_length(inter_arrival(pcap), FEATURE_SIZE)
+        "inter_arrival": force_length(inter_arrival(pcap), FEATURE_SIZE, pad=0)
     }
 
 
@@ -159,7 +159,7 @@ def __main__():
 
     spark, sc, sqlContext = get_spark_session()
 
-    df = get_flows_df(spark, sqlContext, data_dir)
+    df = get_flows_df(spark, sc, sqlContext, data_dir)
     df.write.csv(tmp_file, header=True)
 
     load_again = read_csv(spark, tmp_file).coalesce(1)
