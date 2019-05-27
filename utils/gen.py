@@ -14,7 +14,7 @@ def pick_first_n(gen, n):
                 break
 
 
-def force_length(iterable, n, pad='0'):
+def force_length(iterable, n, pad=0):
     """
     Picks the first N of the iterable, returns
     an array and pads the end of it with given
