@@ -50,7 +50,7 @@ def _get_size_seq(pcap):
 
 def _get_time_seq(pcap):
     return {
-        "inter_arrival": force_length(inter_arrival(pcap), FEATURE_SIZE, pad=0)
+        "inter_arrival": force_length(inter_arrival(pcap), FEATURE_SIZE, pad=0.0)
     }
 
 
