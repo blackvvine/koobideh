@@ -1,4 +1,19 @@
-FEATURE_SIZE = 30
+import os
+import yaml
+
+_current_dir = os.path.dirname(os.path.realpath(__file__))
+_yaml_conf = yaml.load(open(os.path.join(_current_dir, "config.yml")))
+
+FEATURE_SIZE = _yaml_conf["max_packets_in_flow"]
+
+PARTITIONS = _yaml_conf["partitions"]
+
+MASK_IP = _yaml_conf["mask_ip"]
+MASK_PORT = _yaml_conf["mask_port"]
+
+CLASSES = _yaml_conf["labels"]
+
+# FEATURE_SIZE = 30
 
 # CLASSES = [
 #     "AIMchat",
@@ -61,60 +76,60 @@ FEATURE_SIZE = 30
 #     "youtubeHTML",
 # ]
 
-CLASSES = [
-    "Aliexpress.com",
-    "Alipay.com",
-    "Amazon.co",
-    # "Amazon.co.jp",
-    # "Amazon.com",
-    "Baidu.com",
-    "Bilibili.com",
-    "Bing.com",
-    "Blogspot.com",
-    "Csdn.net",
-    "Ebay.com",
-    "Facebook.com",
-    "Github.com",
-    "Google.co",
-    # "Google.co.in",
-    # "Google.com.hk",
-    # "Google.com",
-    "Imdb.com",
-    "Instagram.com",
-    "Jd.com",
-    "Linkedin.com",
-    "Live.com",
-    "Livejasmin.com",
-    "Login.tmall.com",
-    "Mail.ru",
-    "Microsoft.com",
-    "Microsoftonline.com",
-    "Netflix.com",
-    "Office.com",
-    "Pages.tmall.com",
-    "porn.com",
-    "Pornhub.com",
-    "Qq.com",
-    "Reddit.com",
-    "Sina.com.cn",
-    "Sohu.com",
-    "Stackoverflow.com",
-    "Taobao.com",
-    "T.co",
-    "Tmall.com",
-    "Tribunnews.com",
-    "Twitch.tv",
-    "Twitter.com",
-    "uwaterloo.ca",
-    "Weibo.com",
-    "Wikipedia.org",
-    "Xvideos.com",
-    "Yahoo.co",
-    # "Yahoo.co.jp",
-    # "Yahoo.com",
-    "Yandex.ru",
-    "Youtube.com",
+# CLASSES = [
+#     "Aliexpress.com",
+#     "Alipay.com",
+#     "Amazon.co",
+#     # "Amazon.co.jp",
+#     # "Amazon.com",
+#     "Baidu.com",
+#     "Bilibili.com",
+#     "Bing.com",
+#     "Blogspot.com",
+#     "Csdn.net",
+#     "Ebay.com",
+#     "Facebook.com",
+#     "Github.com",
+#     "Google.co",
+#     # "Google.co.in",
+#     # "Google.com.hk",
+#     # "Google.com",
+#     "Imdb.com",
+#     "Instagram.com",
+#     "Jd.com",
+#     "Linkedin.com",
+#     "Live.com",
+#     "Livejasmin.com",
+#     "Login.tmall.com",
+#     "Mail.ru",
+#     "Microsoft.com",
+#     "Microsoftonline.com",
+#     "Netflix.com",
+#     "Office.com",
+#     "Pages.tmall.com",
+#     "porn.com",
+#     "Pornhub.com",
+#     "Qq.com",
+#     "Reddit.com",
+#     "Sina.com.cn",
+#     "Sohu.com",
+#     "Stackoverflow.com",
+#     "Taobao.com",
+#     "T.co",
+#     "Tmall.com",
+#     "Tribunnews.com",
+#     "Twitch.tv",
+#     "Twitter.com",
+#     "uwaterloo.ca",
+#     "Weibo.com",
+#     "Wikipedia.org",
+#     "Xvideos.com",
+#     "Yahoo.co",
+#     # "Yahoo.co.jp",
+#     # "Yahoo.com",
+#     "Yandex.ru",
+#     "Youtube.com",
+#
+# ]
 
-]
-
-PARTITIONS = 1024
+# PARTITIONS = 1024

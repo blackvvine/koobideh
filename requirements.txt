@@ -6,11 +6,9 @@ ipython==5.8.0
 ipython-genutils==0.2.0
 Logbook==1.4.3
 lxml==4.3.3
-numpy==1.16.3
 pathlib2==2.3.3
 pexpect==4.7.0
 pickleshare==0.7.5
-pkg-resources==0.0.0
 prompt-toolkit==1.0.16
 ptyprocess==0.6.0
 py==1.8.0
@@ -20,10 +18,10 @@ Pygments==2.3.1
 pyshark==0.4.2.2
 pyspark==2.4.2
 pyspark-stubs==2.4.0.post1
+PyYAML==5.1
 scandir==1.10.0
 scapy==2.3.2
 scapy-ssl-tls==2.0.0
-scipy==1.2.1
 simplegeneric==0.8.1
 six==1.12.0
 tinyec==0.3.1
