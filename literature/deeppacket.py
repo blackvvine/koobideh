@@ -22,6 +22,8 @@ from config import PARTITIONS
 
 from numpy import dtype
 
+import config as kconfig
+
 
 def filter_out_dns(pkt):
     return DNS not in pkt
@@ -63,13 +65,20 @@ def convert_to_bytes(arg):
     netlayer = _get_ip_layer(pkt).copy()
 
     # mask IP
-    zero = _get_zero_address(pkt)
-    netlayer.src = zero
-    netlayer.dst = zero
+    if kconfig.MASK_IP:
+        zero = _get_zero_address(pkt)
+        netlayer.src = zero
+        netlayer.dst = zero
 
     # add IP header
     header_length = len(netlayer) - len(netlayer.payload)
     mbytes = str(netlayer)[:header_length]
+
+    # mask TCP/UDP port
+    if kconfig.MASK_PORT:
+        if UDP in pkt or TCP in pkt:
+            netlayer.sport = 0
+            netlayer.dport = 0
 
     # zero-pad UDP header
     if UDP in pkt:
