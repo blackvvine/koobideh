@@ -1,10 +1,10 @@
 backports.shutil-get-terminal-size==1.0.0
 decorator==4.4.0
 enum34==1.1.6
-file-path==0.3.1
+file-path==0.2
 ipython==5.8.0
 ipython-genutils==0.2.0
-Logbook==1.5.3
+Logbook==1.4.3
 lxml==4.3.3
 numpy==1.16.3
 pathlib2==2.3.3
