@@ -3,8 +3,8 @@ import sys
 
 from filepath.filepath import fp
 
-from utils import get_logger
-from utils.sprk import read_csv, get_spark_session
+from kabab.utils import get_logger
+from kabab.utils.sprk import read_csv, get_spark_session
 
 
 logger = get_logger("Analysis")

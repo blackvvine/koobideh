@@ -1,6 +1,3 @@
-from config import FEATURE_SIZE
-
-
 def pick_first_n(gen, n):
     """
     Picks the first N elements of a generator

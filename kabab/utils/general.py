@@ -2,8 +2,7 @@ import sys
 
 from filepath.filepath import fp
 
-from config import CLASSES
-from utils.gen import pick_first_n
+from kabab.config import CLASSES
 
 
 def get_label(mpath):

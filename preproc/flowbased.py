@@ -1,14 +1,12 @@
-from scapy.all import *
-
-from analysis.flow import check_tls, size_seq, dir_seq, inter_arrival
-from utils.general import get_label, read_inputs, get_pcaps, load_pcap
-from utils import get_logger
-from utils.gen import force_length
+from kabab.flow import check_tls, size_seq, dir_seq, inter_arrival
+from kabab.utils.general import get_label, read_inputs, get_pcaps, load_pcap
+from kabab.utils import get_logger
+from kabab.utils.gen import force_length
 
 from pyspark.sql import Row
 
-from config import FEATURE_SIZE
-from utils.sprk import get_spark_session, read_csv, write_csv
+from kabab.config import FEATURE_SIZE
+from kabab.utils.sprk import get_spark_session, read_csv, write_csv
 
 import shutil
 

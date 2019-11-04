@@ -1,9 +1,8 @@
-import re
-
 from scapy.all import *
+from scapy.all import TCP, UDP, IP, IPv6
 from scapy_ssl_tls.ssl_tls import TLS, TLSServerHello, TLSClientHello
 
-from utils.gen import pick_first_n
+from kabab.utils.gen import pick_first_n
 
 
 def _get_ip_src_dst(pkt):

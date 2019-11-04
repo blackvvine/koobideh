@@ -1,9 +1,8 @@
-from analysis.packet import check_packet_tls, get_src_dst
-from utils import get_logger
+from kabab.packet import check_packet_tls, get_src_dst
+from kabab.utils import get_logger
 
 
 # logger is parse
-from utils.gen import pick_first_n
 
 logger = get_logger("Parse")
 
