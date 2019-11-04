@@ -2,6 +2,8 @@ import sys
 
 from filepath.filepath import fp
 
+from scapy.all import *
+
 from kabab.config import CLASSES
 
 
