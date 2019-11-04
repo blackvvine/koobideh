@@ -1,7 +1,7 @@
 from scapy.all import *
 
 from analysis.flow import check_tls, size_seq, dir_seq, inter_arrival
-from utils.general import get_label, read_inputs, get_pcaps
+from utils.general import get_label, read_inputs, get_pcaps, load_pcap
 from utils import get_logger
 from utils.gen import force_length
 
@@ -13,15 +13,6 @@ from utils.sprk import get_spark_session, read_csv, write_csv
 import shutil
 
 logger = get_logger("Pre-process")
-
-
-def load_pcap(pf):
-    """
-    Read pcap file into Scapy Ether objects
-    :return: File path - Ether object tuples
-    """
-    fpath = pf.path()
-    return fpath, rdpcap(fpath)
 
 
 def _get_direction_seq(pcap):

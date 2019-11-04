@@ -41,3 +41,12 @@ def print_help():
 def get_pcaps(data_dir):
     pcap_list = list([p for p in data_dir.find_files() if p.ext() not in ['json', 'csv', 'txt', 'data']])
     return pcap_list
+
+
+def load_pcap(pf):
+    """
+    Read pcap file into Scapy Ether objects
+    :return: File path - Ether object tuples
+    """
+    fpath = pf.path()
+    return fpath, rdpcap(fpath)
