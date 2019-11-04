@@ -203,18 +203,6 @@ def analysis():
         .csv(out_dir + "/hist-1.csv", header=True)
 
 
-def mat_to_csv():
-
-    data_dir, out_dir = read_inputs()
-    spark, sc, sqlContext = get_spark_session()
-
-    csv_files = [f.path() for f in fp(data_dir).ls() if f.ext() == "csv"]
-
-    paths_rdd = sc.parallelize(csv_files)
-
-    custom_schema = StructType([StructField("b_%03d", IntegerType())] + [StructField("label", IntegerType())])
-
-
 def __main__():
     deep_packet(use_mat=True)
 
