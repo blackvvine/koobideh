@@ -140,6 +140,33 @@ def _analysis():
     df = get_flows_df(spark, sc, sqlContext, data_dir)
     df.createOrReplaceTempView("flows")
 
+    # number of entries in dataset per class
+    # noinspection SqlDialectInspection,SqlNoDataSourceInspection
+    spark.sql("""
+        select * from (
+            select label as class_id, 
+                  count(*) as num_flows, 
+                  sum(num_bytes) as total_bytes, 
+                  sum(num_packets) as total_packets 
+                  from flows group by label
+            ) as m 
+            inner join names on label_id=m.class_id 
+            order by m.class_id
+    """)\
+        .coalesce(1)\
+        .write\
+        .csv("%s-1.csv" % out_file, header=True)
+
+    # TLS (http2/s) stats in dataset
+    # noinspection SqlDialectInspection,SqlNoDataSourceInspection
+    spark.sql("""
+    select http2, https, tls, count(*) as num_flows, sum(num_packets) as num_packets, sum(num_bytes) as total_bytes 
+    from flows group by http2, https, tls
+    """)\
+        .coalesce(1)\
+        .write\
+        .csv("%s-2.csv" % out_file, header=True)
+
 
 def __main__():
 
