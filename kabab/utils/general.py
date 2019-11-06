@@ -49,5 +49,5 @@ def load_pcap(pf):
     Read pcap file into Scapy Ether objects
     :return: File path - Ether object tuples
     """
-    fpath = pf.path()
+    fpath = str(pf)
     return fpath, rdpcap(fpath)
