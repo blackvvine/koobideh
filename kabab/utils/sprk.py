@@ -2,10 +2,10 @@ from pyspark import SparkConf, SparkContext
 from pyspark.sql import SparkSession, SQLContext
 
 
-def get_spark_session():
+def get_spark_session(cores=64):
     # load Spark session
-    spark = SparkSession.builder.master("local[64]").appName("PySparkShell").getOrCreate()
-    conf = SparkConf().setAppName("PySparkShell").setMaster("local[64]")
+    spark = SparkSession.builder.master("local[%d]" % cores).appName("PySparkShell").getOrCreate()
+    conf = SparkConf().setAppName("PySparkShell").setMaster("local[%d]" % cores)
     sc = SparkContext.getOrCreate(conf)
     sqlContext = SQLContext(sc)
     return spark, sc, sqlContext
