@@ -5,7 +5,7 @@ file-path==0.3.1
 ipython==5.8.0
 ipython-genutils==0.2.0
 Logbook==1.5.3
-lxml==4.3.3
+lxml==4.6.2
 pathlib2==2.3.3
 pexpect==4.7.0
 pickleshare==0.7.5
